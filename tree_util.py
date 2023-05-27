@@ -1,11 +1,12 @@
 import functools
+from collections import OrderedDict
 
 class LeafType:
-    def __init__(self):
-        pass
+    def __init__(self, is_none=False):
+        self.is_none = is_none
     
     def __repr__(self):
-        return "*"
+        return "*" if self.is_none else "None"
 
 def tree_flatten(tree, leaf_predicate=None):
     leaves = []
@@ -19,7 +20,9 @@ def tree_flatten(tree, leaf_predicate=None):
             def recurse(child):
                 return flatten_impl(child, leaves, leaf_predicate)
             
-            if isinstance(handle, (tuple, list)):
+            if handle is None:
+                treedef.is_none = True
+            elif isinstance(handle, (tuple, list)):
                 treedef = []
                 for i in range(len(handle)):
                     treedef.append(recurse(handle[i]))
@@ -28,6 +31,8 @@ def tree_flatten(tree, leaf_predicate=None):
                 treedef = {}
                 for key in sorted(handle.keys()):
                     treedef[key] = recurse(handle[key])
+                if isinstance(handle, OrderedDict):
+                    treedef = OrderedDict(treedef)
             else:
                 leaves.append(handle)
 
@@ -39,12 +44,15 @@ def tree_unflatten(treedef, tree_leaves):
     tree_leaves = tree_leaves[::-1]
     
     def unflatten_impl(handle, leaves):
-        treedef = LeafType()
+        is_none = isinstance(handle, LeafType) and handle.is_none
+        treedef = LeafType(is_none)
         
         def recurse(child):
             return unflatten_impl(child, leaves)
         
-        if isinstance(handle, (tuple, list)):
+        if is_none:
+            pass
+        elif isinstance(handle, (tuple, list)):
             treedef = []
             for i in range(len(handle)):
                 treedef.append(recurse(handle[i]))
@@ -53,6 +61,8 @@ def tree_unflatten(treedef, tree_leaves):
             treedef = {}
             for key in sorted(handle.keys()):
                 treedef[key] = recurse(handle[key])
+            if isinstance(handle, OrderedDict):
+                treedef = OrderedDict(treedef)
         else:
             if len(tree_leaves) == 0:
                 raise RuntimeError("there are more tree_leaves in argument #0 than specified by the treedef in argument #1")
@@ -79,7 +89,7 @@ def tree_map(f, tree, *rest):
         if repr(treedef) != repr(all_treedefs[0]):
             raise RuntimeError(f"Got a tree with a different structure: tree #0 has structure \n{repr(all_treedefs[0])}\n but tree #{i} has structure \n{repr(treedef)}")
         
-    return tree_unflatten([f(*xs) for xs in zip(*all_leaves)], all_treedefs[0])
+    return tree_unflatten(all_treedefs[0], [f(*xs) for xs in zip(*all_leaves)])
 
 def tree_reduce(function, tree):
     return functools.reduce(function, tree_leaves(tree))

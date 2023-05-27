@@ -23,6 +23,7 @@ simple_tree = {
             "b2": 4 * np.ones([c, c]),
         },
         [1, 2, 3],
+        None
     ],
     "out": 5 * np.ones([c, c]),
 }
@@ -31,13 +32,13 @@ fancy_tree = {
         {
             "w1": 1 * np.ones([c, c]),
             "b1": 2 * np.ones([c, c]),
-            "nested": {
+            "nested": OrderedDict({
                 "x": np.array([1, 2, 3]),
                 "y": {
                     "z1": np.array([4, 5, 6]),
                     "z2": np.array([7, 8, 9])
                 }
-            }
+            })
         },
         {
             "w2": 3 * np.ones([c, c]),
@@ -59,10 +60,10 @@ fancy_tree = {
     "out": 5 * np.ones([c, c]),
     "nested_dict": {
         "d1": {
-            "e1": {
+            "e1": OrderedDict({
                 "f1": np.array([25, 26, 27]),
                 "f2": np.array([28, 29, 30])
-            },
+            }),
             "e2": np.array([31, 32, 33])
         },
         "d2": {
@@ -83,10 +84,11 @@ fancy_tree = {
         {
             "g1": np.array([55, 56, 57]),
             "g2": np.array([58, 59, 60])
-        }
+        },
+        None,
+        [None, None, True]
     ]
 }
-
 trees = [none_tree, object_tree, tuple_tree, list_tree, simple_tree, fancy_tree]
 
 def is_same(a, b):
@@ -98,12 +100,14 @@ def is_same(a, b):
         return a == b
 
 def test_tree(test_name, tree, correct_tree, test_tree):
-    comparison = jax.tree_util.tree_map(lambda a, b: is_same(a, b), correct_tree, test_tree)
-    if not all(jax.tree_util.tree_flatten(comparison)[0]):
+    try:
+        comparison = jax.tree_util.tree_map(lambda a, b: is_same(a, b), correct_tree, test_tree)
+        assert all(jax.tree_util.tree_flatten(comparison)[0])
+    except:
         raise RuntimeError(f"failed {test_name} test for tree {tree}. correct tree is {correct_tree}, but got {test_tree}")
     return True
 
-for tree in trees[1:]:
+for tree in trees:
     correct_flat_tree, correct_pytree_def = jax.tree_util.tree_flatten(tree)
     test_flat_tree, test_pytree_def = tree_flatten(tree)
     test_tree('tree_flatten', tree, correct_flat_tree, test_flat_tree)
